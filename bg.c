@@ -63,19 +63,6 @@ void scrolling(Background *b, int direction, int dx) {
         
     }
 
-    /*if (b->camera_pos.x < 0) {
-        b->camera_pos.x += b->rect.w;
-    } else if (b->camera_pos.x >= b->rect.w) {
-        b->camera_pos.x -= b->rect.w;
-    }
-    if (b->camera_pos.y < 0) {
-        b->camera_pos.y += b->rect.h;
-    } else if (b->camera_pos.y >= b->rect.h) {
-        b->camera_pos.y -= b->rect.h;
-    }*/
-}
-
-
 void saveScore(ScoreInfo s, char *fileName) {
     FILE *fp;
     fp = fopen(fileName, "a");
@@ -87,48 +74,13 @@ void saveScore(ScoreInfo s, char *fileName) {
     fclose(fp);
 }
 
-void bestScore(char *filename, ScoreInfo t[]) {
-    FILE *fp;
-    char line[100];
-    int i = 0;
-    fp = fopen(filename, "r");
-    if (fp == NULL) {
-        printf("Error: could not open file.\n");
-        return;
-    }
-    while (fgets(line, sizeof(line), fp) != NULL ) {
-        sscanf(line, "%d %d %s", &t[i].score, &t[i].time, t[i].playerName);
-        i++;
-    }
-    fclose(fp);
-    int n = i;
-    ScoreInfo temp;
-    for (i = 0; i < n - 1; i++) {
-        for (int j = i + 1; j < n; j++) {
-            if (t[j].score > t[i].score || (t[j].score == t[i].score && t[j].time < t[i].time)) {
-                temp = t[i];
-                t[i] = t[j];
-                t[j] = temp;
-            }
-        }
-    }
-    printf("High Scores:\n");
-    for (i = 0; i < 3 && i < n; i++) {
-        char scoreString[50];
-        sprintf(scoreString, "%s %d %d", t[i].playerName, t[i].score, t[i].time);
-        printf("%d. %s\n", i + 1, scoreString);
-    }
-}
-void draw_scores(char *filename, ScoreInfo t[]) {
-    // Initialize SDL and TTF
+
+void draw_scores(char *filename, ScoreInfo t[],int score,Uint32 start_time) {
     SDL_Init(SDL_INIT_VIDEO);
     TTF_Init();
-
-    // Create surface and load font
     SDL_Surface *surface = SDL_SetVideoMode(640, 480, 32, SDL_SWSURFACE);
     TTF_Font *font = TTF_OpenFont("font.ttf", 28);
 
-    // Load scores from file
     FILE *fp;
     char line[100];
     int i = 0;
@@ -143,8 +95,6 @@ void draw_scores(char *filename, ScoreInfo t[]) {
     }
     fclose(fp);
     int n = i;
-
-    // Sort scores
     ScoreInfo temp;
     for (i = 0; i < n - 1; i++) {
         for (int j = i + 1; j < n; j++) {
@@ -155,8 +105,6 @@ void draw_scores(char *filename, ScoreInfo t[]) {
             }
         }
     }
-
-    // Create surface for scores
     SDL_Surface *textSurface;
     SDL_Rect rect;
     char scoreString[50];
@@ -169,19 +117,18 @@ void draw_scores(char *filename, ScoreInfo t[]) {
         SDL_BlitSurface(textSurface, NULL, surface, &rect);
         SDL_FreeSurface(textSurface);
     }
-
-    // Update surface
     SDL_UpdateRect(surface, 0, 0, 0, 0);
 
-    // Wait for user to quit
+
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN) {
             break;
         }
     }
-
-    // Clean up
+    Uint32 elapsed_time = get_elapsed_time(start_time);
+    ScoreInfo si = { score,elapsed_time, "Player 1" };
+    saveScore(si, "scores.txt");
     TTF_CloseFont(font);
     SDL_Quit();
     TTF_Quit();
@@ -276,7 +223,7 @@ Uint32 get_elapsed_time(Uint32 start_time) {
                             scrolling(b, DOWN, 5);
                             break;
                         case SDLK_m:
-                            draw_scores("scores.txt", topScores);
+                            draw_scores("scores.txt", topScores, score,start_time);
                     }
                     break;
             }
@@ -298,115 +245,37 @@ Uint32 get_elapsed_time(Uint32 start_time) {
 }
 
 
-void playMultiplayer(Background* b1, Background* b2,SDL_Surface* screen , const char** paths) {
 
-    SDL_Init(SDL_INIT_VIDEO);
-    
-
- 
-    //SDL_Surface* p1_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, p1_rect.w, p1_rect.h, 32, 0, 0, 0, 0);
-    initBack(b1,screen, paths, 4);
-
-    //SDL_Surface* p2_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, p2_rect.w, p2_rect.h, 32, 0, 0, 0, 0);
-    initBack(b2,screen, paths, 4);
-    b1->posBack1 = (SDL_Rect){0, (BACKGROUND_HEIGHT- SCREEN_HEIGHT) / 2, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
-    b1->posScreen1 = (SDL_Rect){0, 0, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
-    b1->posBack2 = (SDL_Rect){SCREEN_WIDTH  / 2, (BACKGROUND_HEIGHT  - SCREEN_HEIGHT) / 2, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
-
-
-    b2->posBack1 = (SDL_Rect){SCREEN_WIDTH  / 2, (BACKGROUND_HEIGHT  - SCREEN_HEIGHT) / 2, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
-    b2->posScreen1 = (SDL_Rect){SCREEN_WIDTH  / 2, 0, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
-    b2->posBack2 = (SDL_Rect){0, (BACKGROUND_HEIGHT  - SCREEN_HEIGHT) / 2, SCREEN_WIDTH  / 2, SCREEN_HEIGHT};
- 
-    int gameover1 = 0,gameover2=0;
-    int score1=0,score2 = 0;
-    int level = 1;
-    int lives1= 3,lives2=3;
-    SDL_Event event;
-    Uint32 start_time = SDL_GetTicks();
-    ScoreInfo topScores[3] = {
-    {0, 0, ""},
-    {0, 0, ""},
-    {0, 0, ""}
-    };
-
-    while (!gameover1 && !gameover2) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            switch (event.type) {
-                case SDL_QUIT:
-                    gameover1 = 1;
-                    gameover2 = 1;
-                    break;
-                case SDL_KEYDOWN:
-                    switch (event.key.keysym.sym) {
-                        case SDLK_ESCAPE:
-                            gameover1 = 1;
-                            gameover2 = 1;
-                            break;
-                        case SDLK_LEFT:
-                            b1->direction = LEFT;
-                            scrolling(b1, LEFT, 5);
-                            break;
-                        case SDLK_RIGHT:
-                            b1->direction = RIGHT;
-                            scrolling(b1, RIGHT, 5);
-                            break;
-                        case SDLK_UP:
-                            b1->direction = UP;
-                            scrolling(b1, UP, 5);
-                            break;
-                        case SDLK_DOWN:
-                            b1->direction = DOWN;
-                            scrolling(b1, DOWN, 5);
-                            break;
-                        case SDLK_q:
-                            b2->direction = LEFT;
-                            scrolling(b2, LEFT, 5);
-                            break;
-                        case SDLK_d:
-                            b2->direction = RIGHT;
-                            scrolling(b2, RIGHT, 5);
-                            break;
-                        case SDLK_z:
-                            b2->direction = UP;
-                            scrolling(b2, UP, 5);
-                            break;
-                        case SDLK_s:
-                            b2->direction = DOWN;
-                            scrolling(b2, DOWN, 5);
-                            break;
-                    }
-                    break;
-            }
-        }
-        score1 += level;
-        score2 += level;
-
-        if (score1 >= 10 * level || score2 >= 10 * level) {
-            level++;
-        }
-        SDL_FillRect(screen, NULL, 0);
-        
-        animerBack(b1, &screen);
-        draw_hearts(screen, lives1, b1);
-
-        
-        animerBack(b2, &screen);
-        draw_hearts(screen, lives2, b2);
-        SDL_Flip(screen);
-        SDL_Delay(20);
-        
-        
-    
-    }
-    Uint32 elapsed_time = get_elapsed_time(start_time);
-    printf("Elapsed time: %u milliseconds\n", elapsed_time);
-    
-    ScoreInfo si1 = { score1,elapsed_time, "Player 1" };
-    saveScore(si1, "scores.txt");
-    ScoreInfo si2 = { score2,elapsed_time, "Player 2" };
-    saveScore(si2, "scores.txt");
-    bestScore("scores.txt", topScores);
-}
 */
+/*void init_Back(Background bg){
+bg.image = SDL_LoadBMP("background.bmp"); // Load the background image
+bg.posBack1.x = 0;
+bg.posBack1.y = 0;
+bg.posBack1.w = bg.image->w / 2; // Set the width of the first camera to half of the image width
+bg.posBack1.h = bg.image->h;
+bg.posBack2.x = bg.posBack1.w; // Set the x position of the second camera to the end of the first camera
+bg.posBack2.y = 0;
+bg.posBack2.w = bg.image->w / 2; // Set the width of the second camera to half of the image width
+bg.posBack2.h = bg.image->h;
+bg.posScreen1.x = 0;
+bg.posScreen1.y = 0;
+bg.posScreen1.w = bg.posBack1.w;
+bg.posScreen1.h = bg.posBack1.h;
+bg.posScreen2.x = bg.posBack1.w;
+bg.posScreen2.y = 0;
+bg.posScreen2.w = bg.posBack2.w;
+bg.posScreen2.h = bg.posBack2.h;
+bg.lineY = bg.image->h / 2; // Set the Y position of the horizontal line to the middle of the image height
+}
+void playmultiplayer(Background *bg, SDL_Surface *screen) {
+    // Blit the first part of the background
+    SDL_BlitSurface(bg->image, &bg->posBack1, screen, &bg->posScreen1);
+
+    // Blit the second part of the background
+    SDL_BlitSurface(bg->image, &bg->posBack2, screen, &bg->posScreen2);
+
+    // Draw the horizontal line
+    SDL_Rect lineRect = {0, bg->lineY, screen->w, 1};
+    Uint32 lineColor = SDL_MapRGB(screen->format, 255, 255, 255); // White color
+    SDL_FillRect(screen, &lineRect, lineColor);
+}*/
